@@ -1,10 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <random>
-#include <cstdlib>
-#include <new>
-#include <limits>
-#include <ctime>
+
 using namespace std;
 
 class Location {
@@ -18,15 +15,19 @@ public:
 int distance(Location);
 void greedy_tour(Location *);
 void three_opt();
+void two_opt_fast();
 void two_opt();
+void double_bridge_move();
 void noise();
 int distance(Location, Location);
 void swap_tour_pointers();
 int swap(int, int, int);
+int swap4(int, int, int, int, int, int, int, int);
 int swap3(int, int, int, int, int, int);
 int swap2(int, int, int, int);
 int calculate_tour_length(int *);
 void set_best_tour_if_possible(int, int *t);
+//void check_correctness();
 bool time_is_up();
 bool time_is_up_noise();
 void print_tour_coordinates(Location *);
@@ -39,18 +40,12 @@ int* new_tour;
 int* best_tour;
 int best_length = numeric_limits<int>::max();;
 
-random_device rd;  //Will be used to obtain a seed for the random number engine
-mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
-uniform_real_distribution<> dis(0, 1);
-typedef numeric_limits< double > dbl;
 
 int N;
 clock_t start;
 
 int main() {
     start = clock();
-    // Can print doubles
-    cout.precision(dbl::max_digits10);
     string line;
     // Read first line from stdin
     getline(cin, line);
@@ -96,35 +91,41 @@ int main() {
         }
     }
 
-    // cout << "greedy tour distance " << calculate_tour_length(tour) << endl;
-
     if (N > 3) {
-        two_opt();
+        two_opt_fast();
         int i = 0;
         // Really important that I save best tour before noise;
         set_best_tour_if_possible(calculate_tour_length(tour), tour);
         while (true) {
-            if (time_is_up()) break;
-            noise();
-            two_opt();
-            if (i % 3 == 0) {
-                three_opt();
-                int length = calculate_tour_length(tour);
-                set_best_tour_if_possible(length, tour);
-                if (length > best_length) {
-                    // Revert to best tour
-                    for (int j = 0; j < N; j++) {
-                        tour[j] = best_tour[j];
-                    }
+            if (time_is_up_noise()) break;
+            if (N < 10) noise();
+            else {
+                if (i % 3 == 0) {
+                    noise();
+                    if (time_is_up_noise()) break;
+                }
+                else double_bridge_move();
+            }
+            two_opt_fast();
+            if (N < 30) three_opt();
+            int length = calculate_tour_length(tour);
+            set_best_tour_if_possible(length, tour);
+            if (length > best_length) {
+                // Revert to best tour
+                for (int j = 0; j < N; j++) {
+                    tour[j] = best_tour[j];
                 }
             }
             i++;
         }
     }
 
+    three_opt();
+    two_opt();
 
     set_best_tour_if_possible(calculate_tour_length(tour), tour);
-    // cout << "end distance " << best_length << endl;
+    //cout << "end distance " << best_length << endl;
+
     for(int i = 0; i < N; i++) {
         cout << best_tour[i] << "\n";
     }
@@ -160,23 +161,71 @@ void greedy_tour(Location *locations) {
 }
 
 
+void double_bridge_move() {
+    int i = rand() % (N-7);
+    int j = (rand() % (N-5-(i+2))) + i+2;
+    int k = (rand() % (N-3-(j+2))) + j+2;
+    int l = (rand() % (N-1-(k+2))) + k+2;
+    swap4(i, k+1, l, j+1, k, i+1, j, l+1);
+    swap_tour_pointers();
+
+}
+
+
 void noise() {
     if (N < 4) return (void) 0;
     for (int z = 0; z < N; z++) {
-        if (time_is_up_noise()) return (void) 0;
         int i = rand() % (N-3);
         int k_min = i+2;
         // Generate random number from k_min to N-1 (or between i+1 to N)
         int k = rand() % (N-1-k_min) + k_min;
         int new_dist = distance_between[tour[i]][tour[k]] + distance_between[tour[i+1]][tour[k+1]];
         int old_dist = distance_between[tour[i]][tour[i+1]] + distance_between[tour[k]][tour[k+1]];
-        if (new_dist < old_dist + (int)(old_dist/5)) {
+        if (new_dist < old_dist + old_dist) {
             swap2(i, k, i+1, k+1);
             swap_tour_pointers();
         }
     }
 }
 
+
+void two_opt_fast() {
+    int last;
+    bool found = false;
+    int times = 0;
+    int pos = 0;
+    while (times <= N*6) {
+        // do rand on i
+        int i = rand() % (N-3);
+
+        for (int j = i + 2; j < N; j++) {
+            if (j + 1 == N) last = 0;
+            else last = j + 1;
+
+            if (distance_between[tour[i]][tour[j]] +
+                distance_between[tour[i + 1]][tour[last]] <
+                distance_between[tour[i]][tour[i + 1]] +
+                distance_between[tour[j]][tour[last]]) {
+                if (found == false) {
+                    pos = swap(0, 0, i);
+                    found = true;
+                }
+                pos = swap(pos, j, i+1);
+                i = j;
+                j = i + 2;
+            }
+        }
+
+        // if we have found something, fill the rest up until N-1
+        if (found) {
+            if (pos <= N - 1) pos = swap(pos, pos, N - 1);
+            swap_tour_pointers();
+            found = false;
+        }
+        times ++;
+    }
+
+}
 
 
 void two_opt() {
@@ -283,6 +332,14 @@ int swap(int pos, int from, int to) {
     return pos;
 }
 
+int swap4(int a, int b, int c, int d, int e, int f, int g, int h) {
+    int pos = swap(0, 0, a);
+    pos = swap(pos, b, c);
+    pos = swap(pos, d, e);
+    pos = swap(pos, f, g);
+    if (h <= N-1) pos = swap(pos, h, N-1);
+}
+
 int swap3(int a, int b, int c, int d, int e, int f) {
     int pos = swap(0, 0, a);
     pos = swap(pos, b, c);
@@ -308,6 +365,7 @@ void swap_tour_pointers() {
 
 void set_best_tour_if_possible(int tour_length, int *t) {
     if (tour_length < best_length) {
+        // cout << "setting best tour " << tour_length << endl;
         for(int i = 0; i < N; i++) {
             best_tour[i] = t[i];
         }
@@ -327,13 +385,10 @@ int distance(Location loc1, Location loc2) {
 
 int calculate_tour_length(int *t) {
     int sum = 0;
-    for(int i = 0; i < N; i++) {
-        if (i == N-1) {
-            sum += distance_between[t[i]][0];
-        } else {
-            sum += distance_between[t[i]][t[i+1]];
-        }
+    for(int i = 0; i < N-1; i++) {
+        sum += distance_between[t[i]][t[i+1]];
     }
+    sum += distance_between[t[N-1]][0];
     return sum;
 }
 
