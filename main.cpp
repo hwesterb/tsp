@@ -4,6 +4,14 @@
 
 using namespace std;
 
+/// Number of optional launch arguments
+#define kOPT_ARGS_COUNT     3
+
+/// Default values of the launch arguments
+#define kDEF_NOISE_RATIO    2.0f
+#define kDEF_NOISE_PERIOD   3
+#define kDEF_THREEOPT_TRSH  30
+
 class Location {
 public:
     double x;
@@ -40,11 +48,34 @@ int* new_tour;
 int* best_tour;
 int best_length = numeric_limits<int>::max();;
 
+static float kNoiseRatio;
+static int   kNoisePeriod;
+static int   kThreeOptThreshold;
 
 int N;
 clock_t start;
 
-int main() {
+int main(int argc, char **argv) {
+
+    if (argc == kOPT_ARGS_COUNT+1) {
+
+        // Use passed values
+        kNoiseRatio = atof(argv[1]);
+        kNoisePeriod = atoi(argv[2]);
+        kThreeOptThreshold = atoi(argv[3]);
+
+    } else if (argc > 1) {
+        cerr << "Unhandled extra parameters!\n";
+        exit(EXIT_FAILURE);
+
+    } else {
+
+        // Use default values
+        kNoiseRatio = kDEF_NOISE_RATIO;
+        kNoisePeriod = kDEF_NOISE_PERIOD;
+        kThreeOptThreshold = kDEF_THREEOPT_TRSH;
+    }
+
     start = clock();
     string line;
     // Read first line from stdin
@@ -100,14 +131,14 @@ int main() {
             if (time_is_up_noise()) break;
             if (N < 10) noise();
             else {
-                if (i % 3 == 0) {
+                if (i % kNoisePeriod == 0) {
                     noise();
                     if (time_is_up_noise()) break;
                 }
                 else double_bridge_move();
             }
             two_opt_fast();
-            if (N < 30) three_opt();
+            if (N < kThreeOptThreshold) three_opt();
             int length = calculate_tour_length(tour);
             set_best_tour_if_possible(length, tour);
             if (length > best_length) {
@@ -138,7 +169,7 @@ int main() {
 /**
  * The greedy algorithm starts from some node and finds the shortest distance
  * from this node. The tour-variable is set in this function.
- * @param locations
+ * @param locations -
  */
 void greedy_tour(Location *locations) {
     int from = 0;
@@ -181,7 +212,7 @@ void noise() {
         int k = rand() % (N-1-k_min) + k_min;
         int new_dist = distance_between[tour[i]][tour[k]] + distance_between[tour[i+1]][tour[k+1]];
         int old_dist = distance_between[tour[i]][tour[i+1]] + distance_between[tour[k]][tour[k+1]];
-        if (new_dist < old_dist + old_dist) {
+        if (new_dist < old_dist*kNoiseRatio) {
             swap2(i, k, i+1, k+1);
             swap_tour_pointers();
         }
@@ -338,6 +369,7 @@ int swap4(int a, int b, int c, int d, int e, int f, int g, int h) {
     pos = swap(pos, d, e);
     pos = swap(pos, f, g);
     if (h <= N-1) pos = swap(pos, h, N-1);
+    return pos;
 }
 
 int swap3(int a, int b, int c, int d, int e, int f) {
@@ -345,6 +377,7 @@ int swap3(int a, int b, int c, int d, int e, int f) {
     pos = swap(pos, b, c);
     pos = swap(pos, d, e);
     if (f <= N-1) pos = swap(pos, f, N-1);
+    return pos;
 }
 
 
@@ -352,6 +385,7 @@ int swap2(int a, int b, int c, int d) {
     int pos = swap(0, 0, a);
     pos = swap(pos, b, c);
     if (d <= N-1) swap(pos, d, N-1);
+    return pos;
 }
 
 /**
