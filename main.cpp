@@ -51,6 +51,7 @@ int best_length = numeric_limits<int>::max();;
 static float kNoiseRatio;
 static int   kNoisePeriod;
 static int   kThreeOptThreshold;
+static bool  kOutputTourLengthOnly;
 
 int N;
 clock_t start;
@@ -63,6 +64,7 @@ int main(int argc, char **argv) {
         kNoiseRatio = atof(argv[1]);
         kNoisePeriod = atoi(argv[2]);
         kThreeOptThreshold = atoi(argv[3]);
+        kOutputTourLengthOnly = true;
 
     } else if (argc > 1) {
         cerr << "Unhandled extra parameters!\n";
@@ -74,6 +76,7 @@ int main(int argc, char **argv) {
         kNoiseRatio = kDEF_NOISE_RATIO;
         kNoisePeriod = kDEF_NOISE_PERIOD;
         kThreeOptThreshold = kDEF_THREEOPT_TRSH;
+        kOutputTourLengthOnly = false;
     }
 
     start = clock();
@@ -157,10 +160,13 @@ int main(int argc, char **argv) {
     set_best_tour_if_possible(calculate_tour_length(tour), tour);
     //cout << "end distance " << best_length << endl;
 
-    for(int i = 0; i < N; i++) {
-        cout << best_tour[i] << "\n";
+    if (kOutputTourLengthOnly) {
+        cout << best_length << "\n";
+    } else {
+        for (int i = 0; i < N; i++) {
+            cout << best_tour[i] << "\n";
+        }
     }
-
 
     return 0;
 }
