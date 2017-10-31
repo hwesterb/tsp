@@ -58,13 +58,13 @@ def bf_run(params):
 	del params["input_filepaths"]
 	params["total_length"] = res
 	results.append(params)
-	print("Worker -> i: {}, {}".format(len(results), params))
+	print("Job {} -> {}".format(len(results), params))
 
 def parallel_bf():
 
-	noise_ratio_ls = linspace(0.5, 3.0, num=2)
+	noise_ratio_ls = linspace(0.5, 3.0, num=4)
 	noise_period_ls = linspace(1.0, 10.0, num=10) # Content of this should be integers (1+max-min divisible by num)
-	threeopt_threshold_ls = linspace(30.0, 30.0, num=1) # Same for this one
+	threeopt_threshold_ls = linspace(10.0, 50.0, num=5) # Same for this one
 
 	jobs = []
 	for nr in noise_ratio_ls:
