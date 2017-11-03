@@ -15,11 +15,12 @@ import argparse
 import glob
 import time
 import multiprocessing as mp
-from numpy import linspace
+from numpy import linspace, append
 
 
 DEF_EXE_PATH = "./TSP"
 DEF_INPUT_FOLDER = "./in/"
+TSP_TIME_LIMIT = 2.0 # seconds
 
 parser = argparse.ArgumentParser(prog='TSP Parameter Optimization', usage='Some usage', description='Some description')
 parser.add_argument('-e', '--exepath',   	help='path to the executable', default=DEF_EXE_PATH, type=str)
@@ -27,6 +28,7 @@ parser.add_argument('-i', '--inputfolder',  help='path to the folder with the in
 parser.add_argument('-o', '--outputfile',   help='path to the output csv file with results', default=None, type=str)
 args = parser.parse_args()
 
+concurrency = mp.cpu_count()
 exe_path = args.exepath
 output_filepath = args.outputfile
 input_folder = args.inputfolder
@@ -55,6 +57,8 @@ def results_to_csv(results, csv_path):
 				r['noise_ratio'],
 				r['noise_period'],
 				r['threeopt_threshold'],
+				r['backtrack_period'],
+				r['double_bridge_period'],
 				r['total_length'],
 				r['total_time']
 			])
@@ -74,12 +78,14 @@ def bf_run(params):
 
 	for fp in input_filepaths:
 
-		cmd = "{exe_path} {noise_ratio} {noise_period} {threeopt_threshold} < {input_filepath}".format(
+		cmd = "{exe_path} {noise_ratio} {noise_period} {threeopt_threshold} {backtrack_period} {double_bridge_period} < {input_filepath}".format(
 			exe_path = params["exe_path"],
 			input_filepath = fp,
 			noise_ratio = params["noise_ratio"],
 			noise_period = params["noise_period"],
-			threeopt_threshold = params["threeopt_threshold"]
+			threeopt_threshold = params["threeopt_threshold"],
+			backtrack_period = params["backtrack_period"],
+			double_bridge_period = params["double_bridge_period"]
 		)
 		tick = time.perf_counter()
 		res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
@@ -99,24 +105,36 @@ def bf_run(params):
 
 def parallel_bf():
 
-	noise_ratio_ls = linspace(0.5, 3.0, num=4)
-	noise_period_ls = linspace(1.0, 10.0, num=10) # Content of this should be integers (1+max-min divisible by num)
-	threeopt_threshold_ls = linspace(10.0, 50.0, num=5) # Same for this one
+	noise_ratio_ls = linspace(1.3, 2.7, num=4)
+	noise_period_ls = linspace(1.0, 1.0, num=1) # Content of this should be integers (1+max-min divisible by num)
+	threeopt_threshold_ls = linspace(10.0, 10.0, num=1) # Same for this one
+	backtrack_period_ls = linspace(1.0, 10.0, num=5) # Same for this one
+	double_bridge_period_ls = linspace(1.0, 10.0, num=5) # Same for this one
+
+	double_bridge_period_ls = append(double_bridge_period_ls,100000000)
 
 	jobs = []
 	for nr in noise_ratio_ls:
 		for np in noise_period_ls:
 			for tt in threeopt_threshold_ls:
-				jobs.append({
-					"exe_path": exe_path,
-					"noise_ratio": nr,
-					"noise_period": np,
-					"threeopt_threshold": tt,
-					"input_filepaths": input_filepaths
-				})
+				for bp in backtrack_period_ls:
+					for dbp in double_bridge_period_ls:
+						jobs.append({
+							"exe_path": exe_path,
+							"noise_ratio": nr,
+							"noise_period": np,
+							"threeopt_threshold": tt,
+							"backtrack_period": bp,
+							"double_bridge_period": dbp,
+							"input_filepaths": input_filepaths
+						})
 
 	jobs_count = len(jobs)
+	job_duration = len(input_filepaths) * TSP_TIME_LIMIT
+	total_duration = job_duration * jobs_count / concurrency
+
 	print("Total jobs: {}".format(jobs_count))
+	print("ETA: {} minute(s)".format(round(total_duration/60.0, 2)))
 	
 	manager = mp.Manager()
 	results = manager.list()

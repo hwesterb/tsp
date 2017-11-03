@@ -5,12 +5,14 @@
 using namespace std;
 
 /// Number of optional launch arguments
-#define kOPT_ARGS_COUNT     3
+#define kOPT_ARGS_COUNT     5
 
 /// Default values of the launch arguments
 #define kDEF_NOISE_RATIO    2.0f
 #define kDEF_NOISE_PERIOD   3
 #define kDEF_THREEOPT_TRSH  30
+#define kDEF_BACKTRACK_PERIOD 1 // 1 => Always backtrack if necessary
+#define kDEF_DB_PERIOD      10 // INT_MAX // => Never perform DB
 
 class Location {
 public:
@@ -51,6 +53,8 @@ int best_length = numeric_limits<int>::max();;
 static float kNoiseRatio;
 static int   kNoisePeriod;
 static int   kThreeOptThreshold;
+static int   kBacktrackPeriod;
+static int   kDoubleBridgePeriod;
 static bool  kOutputTourLengthOnly;
 
 int N;
@@ -64,6 +68,8 @@ int main(int argc, char **argv) {
         kNoiseRatio = atof(argv[1]);
         kNoisePeriod = atoi(argv[2]);
         kThreeOptThreshold = atoi(argv[3]);
+        kBacktrackPeriod = atoi(argv[4]);
+        kDoubleBridgePeriod = atoi(argv[5]);
         kOutputTourLengthOnly = true;
 
     } else if (argc > 1) {
@@ -76,6 +82,8 @@ int main(int argc, char **argv) {
         kNoiseRatio = kDEF_NOISE_RATIO;
         kNoisePeriod = kDEF_NOISE_PERIOD;
         kThreeOptThreshold = kDEF_THREEOPT_TRSH;
+        kBacktrackPeriod = kDEF_BACKTRACK_PERIOD;
+        kDoubleBridgePeriod = kDEF_DB_PERIOD;
         kOutputTourLengthOnly = false;
     }
 
@@ -132,19 +140,23 @@ int main(int argc, char **argv) {
         set_best_tour_if_possible(calculate_tour_length(tour), tour);
         while (true) {
             if (time_is_up_noise()) break;
-            if (N < 10) noise();
+            if (N < 10) noise(); // I think this can be removed
             else {
                 if (i % kNoisePeriod == 0) {
                     noise();
                     if (time_is_up_noise()) break;
                 }
                 else double_bridge_move();
+
+                if (i % kDoubleBridgePeriod == 0) {
+                    double_bridge_move();
+                }
             }
             two_opt_fast();
-            if (N < kThreeOptThreshold) three_opt();
+            if (N < kThreeOptThreshold) three_opt(); // I think this can be removed
             int length = calculate_tour_length(tour);
             set_best_tour_if_possible(length, tour);
-            if (length > best_length) {
+            if (length > best_length && (i % kBacktrackPeriod == 0)) {
                 // Revert to best tour
                 for (int j = 0; j < N; j++) {
                     tour[j] = best_tour[j];
