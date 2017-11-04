@@ -4,15 +4,18 @@
 
 using namespace std;
 
+#define INT_MAX_CPP (numeric_limits<int>::max())
+
 /// Number of optional launch arguments
-#define kOPT_ARGS_COUNT     5
+#define kOPT_ARGS_COUNT 6
 
 /// Default values of the launch arguments
-#define kDEF_NOISE_RATIO    2.0f
-#define kDEF_NOISE_PERIOD   3
-#define kDEF_THREEOPT_TRSH  30
-#define kDEF_BACKTRACK_PERIOD 1 // 1 => Always backtrack if necessary
-#define kDEF_DB_PERIOD      10 // INT_MAX // => Never perform DB
+#define kDEF_NOISE_RATIO        2.45f
+#define kDEF_NOISE_PERIOD       1
+#define kDEF_THREEOPT_TRSH      10
+#define kDEF_BACKTRACK_PERIOD   1           // 1 => Always backtrack if necessary
+#define kDEF_DB_PERIOD          INT_MAX_CPP // INT_MAX => Never perform DB
+#define kDEF_NOISE_ITERS_RATIO  0.43f
 
 class Location {
 public:
@@ -55,6 +58,7 @@ static int   kNoisePeriod;
 static int   kThreeOptThreshold;
 static int   kBacktrackPeriod;
 static int   kDoubleBridgePeriod;
+static float kNoiseItersRatio;
 static bool  kOutputTourLengthOnly;
 
 int N;
@@ -65,11 +69,12 @@ int main(int argc, char **argv) {
     if (argc == kOPT_ARGS_COUNT+1) {
 
         // Use passed values
-        kNoiseRatio = atof(argv[1]);
-        kNoisePeriod = atoi(argv[2]);
-        kThreeOptThreshold = atoi(argv[3]);
-        kBacktrackPeriod = atoi(argv[4]);
+        kNoiseRatio =         atof(argv[1]);
+        kNoisePeriod =        atoi(argv[2]);
+        kThreeOptThreshold =  atoi(argv[3]);
+        kBacktrackPeriod =    atoi(argv[4]);
         kDoubleBridgePeriod = atoi(argv[5]);
+        kNoiseItersRatio =    atof(argv[6]);
         kOutputTourLengthOnly = true;
 
     } else if (argc > 1) {
@@ -79,11 +84,12 @@ int main(int argc, char **argv) {
     } else {
 
         // Use default values
-        kNoiseRatio = kDEF_NOISE_RATIO;
-        kNoisePeriod = kDEF_NOISE_PERIOD;
-        kThreeOptThreshold = kDEF_THREEOPT_TRSH;
-        kBacktrackPeriod = kDEF_BACKTRACK_PERIOD;
+        kNoiseRatio =         kDEF_NOISE_RATIO;
+        kNoisePeriod =        kDEF_NOISE_PERIOD;
+        kThreeOptThreshold =  kDEF_THREEOPT_TRSH;
+        kBacktrackPeriod =    kDEF_BACKTRACK_PERIOD;
         kDoubleBridgePeriod = kDEF_DB_PERIOD;
+        kNoiseItersRatio =    kDEF_NOISE_ITERS_RATIO;
         kOutputTourLengthOnly = false;
     }
 
@@ -140,20 +146,21 @@ int main(int argc, char **argv) {
         set_best_tour_if_possible(calculate_tour_length(tour), tour);
         while (true) {
             if (time_is_up_noise()) break;
-            if (N < 10) noise(); // I think this can be removed
-            else {
-                if (i % kNoisePeriod == 0) {
-                    noise();
-                    if (time_is_up_noise()) break;
-                }
-                else double_bridge_move();
 
-                if (i % kDoubleBridgePeriod == 0) {
-                    double_bridge_move();
-                }
+            if (i % kNoisePeriod == 0) {
+                noise();
+            } else {
+                double_bridge_move();
             }
+
+            if (time_is_up_noise()) break;
+
+            if (i % kDoubleBridgePeriod == 0) {
+                double_bridge_move();
+            }
+
             two_opt_fast();
-            if (N < kThreeOptThreshold) three_opt(); // I think this can be removed
+
             int length = calculate_tour_length(tour);
             set_best_tour_if_possible(length, tour);
             if (length > best_length && (i % kBacktrackPeriod == 0)) {
@@ -170,7 +177,6 @@ int main(int argc, char **argv) {
     two_opt();
 
     set_best_tour_if_possible(calculate_tour_length(tour), tour);
-    //cout << "end distance " << best_length << endl;
 
     if (kOutputTourLengthOnly) {
         cout << best_length << "\n";
@@ -217,13 +223,13 @@ void double_bridge_move() {
     int l = (rand() % (N-1-(k+2))) + k+2;
     swap4(i, k+1, l, j+1, k, i+1, j, l+1);
     swap_tour_pointers();
-
 }
 
 
 void noise() {
     if (N < 4) return (void) 0;
-    for (int z = 0; z < N; z++) {
+    int maxIters = N * kNoiseItersRatio;
+    for (int z = 0; z < maxIters; z++) {
         int i = rand() % (N-3);
         int k_min = i+2;
         // Generate random number from k_min to N-1 (or between i+1 to N)
@@ -273,7 +279,6 @@ void two_opt_fast() {
         }
         times ++;
     }
-
 }
 
 

@@ -20,7 +20,7 @@ from numpy import linspace, append
 
 DEF_EXE_PATH = "./TSP"
 DEF_INPUT_FOLDER = "./in/"
-TSP_TIME_LIMIT = 2.0 # seconds
+TSP_TIME_LIMIT = 2.08 # seconds
 
 parser = argparse.ArgumentParser(prog='TSP Parameter Optimization', usage='Some usage', description='Some description')
 parser.add_argument('-e', '--exepath',   	help='path to the executable', default=DEF_EXE_PATH, type=str)
@@ -59,6 +59,7 @@ def results_to_csv(results, csv_path):
 				r['threeopt_threshold'],
 				r['backtrack_period'],
 				r['double_bridge_period'],
+				r['noise_iters_ratio'],
 				r['total_length'],
 				r['total_time']
 			])
@@ -78,14 +79,15 @@ def bf_run(params):
 
 	for fp in input_filepaths:
 
-		cmd = "{exe_path} {noise_ratio} {noise_period} {threeopt_threshold} {backtrack_period} {double_bridge_period} < {input_filepath}".format(
+		cmd = "{exe_path} {noise_ratio} {noise_period} {threeopt_threshold} {backtrack_period} {double_bridge_period} {noise_iters_ratio}< {input_filepath}".format(
 			exe_path = params["exe_path"],
 			input_filepath = fp,
 			noise_ratio = params["noise_ratio"],
 			noise_period = params["noise_period"],
 			threeopt_threshold = params["threeopt_threshold"],
 			backtrack_period = params["backtrack_period"],
-			double_bridge_period = params["double_bridge_period"]
+			double_bridge_period = params["double_bridge_period"],
+			noise_iters_ratio = params["noise_iters_ratio"]
 		)
 		tick = time.perf_counter()
 		res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
@@ -105,13 +107,14 @@ def bf_run(params):
 
 def parallel_bf():
 
-	noise_ratio_ls = linspace(1.3, 2.7, num=4)
+	noise_ratio_ls = linspace(1.5, 2.5, num=14)
 	noise_period_ls = linspace(1.0, 1.0, num=1) # Content of this should be integers (1+max-min divisible by num)
 	threeopt_threshold_ls = linspace(10.0, 10.0, num=1) # Same for this one
-	backtrack_period_ls = linspace(1.0, 10.0, num=5) # Same for this one
-	double_bridge_period_ls = linspace(1.0, 10.0, num=5) # Same for this one
+	backtrack_period_ls = linspace(1.0, 1.0, num=1) # Same for this one
+	double_bridge_period_ls = linspace(10.0, 10.0, num=1) # Same for this one
+	noise_iters_ratio_ls = linspace(0.8,1.0,num=10)
 
-	double_bridge_period_ls = append(double_bridge_period_ls,100000000)
+	#double_bridge_period_ls = append(double_bridge_period_ls,100000000)
 
 	jobs = []
 	for nr in noise_ratio_ls:
@@ -119,15 +122,17 @@ def parallel_bf():
 			for tt in threeopt_threshold_ls:
 				for bp in backtrack_period_ls:
 					for dbp in double_bridge_period_ls:
-						jobs.append({
-							"exe_path": exe_path,
-							"noise_ratio": nr,
-							"noise_period": np,
-							"threeopt_threshold": tt,
-							"backtrack_period": bp,
-							"double_bridge_period": dbp,
-							"input_filepaths": input_filepaths
-						})
+						for nir in noise_iters_ratio_ls:
+							jobs.append({
+								"exe_path": exe_path,
+								"noise_ratio": nr,
+								"noise_period": np,
+								"threeopt_threshold": tt,
+								"backtrack_period": bp,
+								"double_bridge_period": dbp,
+								"noise_iters_ratio": nir,
+								"input_filepaths": input_filepaths
+							})
 
 	jobs_count = len(jobs)
 	job_duration = len(input_filepaths) * TSP_TIME_LIMIT
